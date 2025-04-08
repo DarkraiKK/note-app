@@ -24,7 +24,6 @@
         }
 
         .sidebar {
-            flex-basis: 300px;
             background: white;
             padding: 20px;
             border-right: 1px solid #ddd;
@@ -64,6 +63,14 @@
             box-shadow: 0 0 8px rgba(52, 152, 219, 0.3);
         }
 
+        #noteTitle{
+            border: 2px solid #ddd;
+            background: rgb(241, 197, 74);
+        }
+
+        #noteContent{
+            background: rgb(241, 197, 74);
+        }
         .notes-list {
             list-style: none;
         }
@@ -91,7 +98,7 @@
 
         /* 编辑区域 */
         .editor {
-            background: white;
+            background: rgb(241, 197, 74);
             padding: 20px;
             border-radius: 8px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
@@ -112,9 +119,9 @@
             resize: vertical;
         }
 
-        .button-group {
+        .button-box {
             display: flex;
-            gap: 10px;
+            justify-content: space-around;
             margin-top: 20px;
         }
 
@@ -147,22 +154,31 @@
                 padding: 20px;
             }
         }
+        
     </style>
 </head>
 <body>
     <div class="sidebar">
         <div class="search-box">
-            <input onkeydown="searchNotes()" type="text" id="searchInput" placeholder="搜索笔记...">
+            <input onkeydown="searchNotes()" type="text" id="searchInput" placeholder="请输入关键字搜索...">
         </div>
         <ul class="notes-list" id="notesList"></ul>
         <button onclick="createNewNote()">新建笔记</button>
+        <button onclick="exportNote()">导出笔记</button>
+        <div style="margin: 20px 0;">
+            <label for="formatSelect">导出格式：</label>
+            <select id="formatSelect">
+                <option value="txt">TXT文件</option>
+                <option value="md">Markdown</option>
+            </select>
+        </div>
     </div>
 
     <div class="content">
         <div class="editor" id="editor">
             <input type="text" id="noteTitle" placeholder="标题">
-            <textarea id="noteContent" placeholder="笔记内容..."></textarea>
-            <div class="button-group">
+            <textarea id="noteContent" placeholder="请输入内容..."></textarea>
+            <div class="button-box">
                 <button onclick="saveNote()">保存</button>
                 <button onclick="deleteNote()" style="background: #e74c3c">删除</button>
             </div>
@@ -231,7 +247,7 @@
         // 保存笔记
         function saveNote() {
             const note = notes.find(n => n.id === currentNoteId);
-            console.log(note,"11")
+            
             if (note) {
                 note.title = document.getElementById('noteTitle').value;
                 note.content = document.getElementById('noteContent').value;
@@ -240,6 +256,8 @@
                 validateNoteInput(note) 
                 saveToStorage();
                 renderNotes();
+            }else{
+                alert('请新建或选择一条笔记')
             }
         }
 
@@ -324,6 +342,44 @@
 
         // 启动应用
         init();
+
+        // 导出
+        function exportNote(format = 'txt') {
+            if (!currentNoteId) {
+                alert('请先选择要导出的笔记');
+                return;
+            }
+
+            const note = notes.find(n => n.id === currentNoteId);
+            const content = note.content;
+            const filename = `${note.title || '未命名笔记'}.${format}`;
+
+            try {
+                if (format === 'txt') {
+                    const blob = new Blob([`# ${note.title}\n\n${content}`], { type: 'text/plain' });
+                    downloadFile(blob, filename);
+                } else if (format === 'md') {
+                    const mdContent = `# ${note.title} ${content.replace(/\*\*(.*?)\*\*/g, '**$1**')}`;
+                            const blob = new Blob([mdContent], { type: 'text/markdown' });
+                            downloadFile(blob, filename);
+                        }
+                    } catch (error) {
+                        console.error('导出失败:', error);
+                        alert('导出失败，请重试');
+                    }
+                }
+                        
+                function downloadFile(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
     </script>
 </body>
 </html>
