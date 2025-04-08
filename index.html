@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Note APP</title>
+    <style>
+        :root {
+            --fontColor: #;
+            --btnColor: #3498db;
+            --bgColor: #e9ecf5;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            display: flex;
+            background: var(--bgColor);
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            flex-basis: 300px;
+            background: white;
+            padding: 20px;
+            border-right: 1px solid #ddd;
+            height: 100vh;
+            overflow-y: auto;
+        }
+
+        .content {
+            flex-grow: 1; flex-shrink: 0;
+            padding: 30px;
+            max-width: 800px;
+        }
+
+        .hiden-text{
+            width: 180px;
+            overflow:hidden;
+            text-overflow: ellipsis;
+        }
+
+        .search-box {
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        #searchInput {
+            width: 100%;
+            padding: 12px 40px 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        #searchInput:focus {
+            outline: none;
+            border-color: var(--btnColor);
+            box-shadow: 0 0 8px rgba(52, 152, 219, 0.3);
+        }
+
+        .notes-list {
+            list-style: none;
+        }
+
+        .note-item {
+            padding: 10px;
+            margin: 10px 0;
+            background: white;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .note-item:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .note-item.active {
+            border-left: 4px solid var(--secondary-color);
+        }
+
+        /* 编辑区域 */
+        .editor {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .editor input,
+        .editor textarea {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+
+        .editor textarea {
+            height: 300px;
+            resize: vertical;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        button {
+            color: white;
+            padding: 10px 20px;
+            border-radius: 4px;
+            background: var(--btnColor);
+        }
+
+        button:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        /* 移动端响应式 */
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                height: auto;
+                border-right: none;
+                border-bottom: 1px solid #ddd;
+            }
+
+            .content {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="search-box">
+            <input onkeydown="searchNotes()" type="text" id="searchInput" placeholder="搜索笔记...">
+        </div>
+        <ul class="notes-list" id="notesList"></ul>
+        <button onclick="createNewNote()">新建笔记</button>
+    </div>
+
+    <div class="content">
+        <div class="editor" id="editor">
+            <input type="text" id="noteTitle" placeholder="标题">
+            <textarea id="noteContent" placeholder="笔记内容..."></textarea>
+            <div class="button-group">
+                <button onclick="saveNote()">保存</button>
+                <button onclick="deleteNote()" style="background: #e74c3c">删除</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let notes = JSON.parse(localStorage.getItem('notes')) || [];
+        let currentNoteId = null;
+
+        // 防抖函数
+        function debounce (fn, wait) {
+            let timer
+            return (...args) => {
+                clearTimeout(timer)
+                timer = setTimeout(() => {
+                    timeout = setTimeout(() => fn.apply(this, args), wait);
+                }, wait)
+            }
+        }
+
+        // 初始化应用
+        function init() {
+            // 过滤掉一些脏数据
+            notes = notes.filter((item)=>  Object.prototype.toString.call(item) === '[object Object]' && item.id )
+            renderNotes();
+            setupEventListeners();
+            if (notes.length > 0) selectNote(notes[0].id);
+        }
+
+        // 缓存笔记到本地
+        function saveToStorage() {
+            localStorage.setItem('notes', JSON.stringify(notes));
+        }
+
+        // 创建新笔记
+        function createNewNote() {
+            const newNote = {
+                id: Date.now(),
+                title: '未命名笔记',
+                content: '',
+                created: new Date().toISOString(),
+                updated: new Date().toISOString()
+            };
+            notes.unshift(newNote);
+            saveToStorage();
+            renderNotes();
+            selectNote(newNote.id);
+        }
+
+        // 数据验证
+        function validateNoteInput(note) {
+            const MAX_TITLE_LENGTH = 40;
+            const MAX_CONTENT_LENGTH = 50000;
+            
+            if (note.title.length > MAX_TITLE_LENGTH) {
+                alert("标题过长");
+                throw new Error('标题过长');
+            }
+            
+            if (note.content.length > MAX_CONTENT_LENGTH) {
+                alert("内容超出限制");
+                throw new Error('内容超出限制');
+            }
+        }
+        // 保存笔记
+        function saveNote() {
+            const note = notes.find(n => n.id === currentNoteId);
+            console.log(note,"11")
+            if (note) {
+                note.title = document.getElementById('noteTitle').value;
+                note.content = document.getElementById('noteContent').value;
+                note.updated = new Date().toISOString();
+                // 简单校验一下长度，如有特殊需求可增加正则校验等
+                validateNoteInput(note) 
+                saveToStorage();
+                renderNotes();
+            }
+        }
+
+        // 删除笔记
+        function deleteNote() {
+            if (confirm('确定要删除此笔记吗？')) {
+                notes = notes.filter(n => n.id !== currentNoteId);
+                saveToStorage();
+                currentNoteId = null;
+                renderNotes();
+                clearEditor();
+            }
+        }
+
+        // 渲染笔记列表
+        function renderNotes(query = '') {
+            const list = document.getElementById('notesList');
+            list.innerHTML = '';
+
+            console.log("notes",notes,query)
+            const filterLites = query ? 
+                notes.filter(item => 
+                    item?.title?.includes(query) ||  item?.content?.includes(query)
+                ): notes;
+
+            console.log("filterLites",filterLites)
+
+            filterLites.forEach(note => {
+                const li = document.createElement('li');
+                li.className = `note-item ${note.id === currentNoteId ? 'active' : ''}`;
+                li.innerHTML = `
+                    <div>
+                        <h3>${note.title || '未命名'}</h3>
+                        <p class="hiden-text">${note.content}</p>
+                    </div>
+                    <small>${new Date(note.updated).toLocaleDateString()}</small>
+                `;
+                li.addEventListener('click', () => selectNote(note.id));
+                list.appendChild(li);
+            });
+        }
+
+        // 选择笔记
+        function selectNote(id) {
+            currentNoteId = id;
+            const note = notes.find(n => n.id === id);
+            if (note) {
+                document.getElementById('noteTitle').value = note.title;
+                document.getElementById('noteContent').value = note.content;
+            }
+            document.querySelectorAll('.note-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            document.querySelector(`[data-id="${id}"]`)?.classList.add('active');
+        }
+
+        // 清空编辑器
+        function clearEditor() {
+            document.getElementById('noteTitle').value = '';
+            document.getElementById('noteContent').value = '';
+        }
+
+        // 事件监听
+        function setupEventListeners() {
+            // 自动保存
+            const saveHandler = debounce(() => {
+                if (currentNoteId) saveNote();
+            }, 1000);
+
+            document.getElementById('noteTitle').addEventListener('input', saveHandler);
+            document.getElementById('noteContent').addEventListener('input', saveHandler);
+        }
+
+        
+        // 笔记搜索
+        function searchNotes() {
+            document.getElementById('searchInput').addEventListener('input', (e) => {
+                console.log(e.target.value)
+                renderNotes(e.target.value);
+            });
+        }
+
+        // 启动应用
+        init();
+    </script>
+</body>
+</html>
